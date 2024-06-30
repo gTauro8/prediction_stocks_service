@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
-import urllib3
-from tensorflow.keras.models import load_model
+from keras.api.models import load_model
+from keras.api.layers import Layer, MultiHeadAttention
+from keras.api.utils import custom_object_scope
 import numpy as np
 import yfinance as yf
 from sklearn.preprocessing import MinMaxScaler
@@ -8,10 +9,8 @@ from sklearn.preprocessing import MinMaxScaler
 app = Flask(__name__)
 
 model = load_model(
-    "~/Core/ml_models/stock_prediction_model.h5")  # percorso del modello, meglio se nella folder di progetto Core/ml_models
+    "core/ml_models/my_model.h5")
 scaler = MinMaxScaler()
-
-urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
 
 
 def preprocess(stock_ticker, start_date, end_date, window_size):
