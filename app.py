@@ -1,47 +1,61 @@
-from flask import Flask, request, jsonify
-from keras.api.models import load_model
-from keras.api.layers import Layer, MultiHeadAttention
-from keras.api.utils import custom_object_scope
-import numpy as np
+import pandas as pd
 import yfinance as yf
-from sklearn.preprocessing import MinMaxScaler
+from flask import Flask, request, jsonify
+from prophet import Prophet
+import logging
 
 app = Flask(__name__)
 
-model = load_model(
-    "core/ml_models/my_model.h5")
-scaler = MinMaxScaler()
+logging.basicConfig(level=logging.DEBUG)
 
-
-def preprocess(stock_ticker, start_date, end_date, window_size):
+def preprocess(stock_ticker, start_date, end_date):
+    logging.info(f"Downloading stock data for {stock_ticker} from {start_date} to {end_date}.")
     stock_data = yf.download(stock_ticker, start=start_date, end=end_date)
-    scaled_data = scaler.fit_transform(stock_data['Close'].values.reshape(-1, 1))
-    data = []
-    for i in range(window_size, len(scaled_data)):
-        data.append(scaled_data[i-window_size:i, 0])
-    return np.array(data)
+    stock_data.reset_index(inplace=True)
+    stock_data = stock_data[['Date', 'Close']]
+    stock_data = stock_data.rename(columns={'Date': 'ds', 'Close': 'y'})
+    logging.info(f"Stock data downloaded and preprocessed: {stock_data.head()}.")
+    return stock_data
 
 
 @app.route('/predict', methods=['POST'])
 def predict():
     data = request.get_json()
-    stock_ticker = data['stock_ticker']
+    stock_tickers = data['stock_tickers']
     start_date = data['start_date']
     end_date = data['end_date']
-    window_size = data['window_size']
     days_in_future = data['days_in_future']
 
-    x_test = preprocess(stock_ticker, start_date, end_date, window_size)
-    last_window = x_test[-1]
+    try:
+        logging.info("Received request data.")
+        logging.info(f"Stock tickers: {stock_tickers}, Start date: {start_date}, End date: {end_date}, Days in future: {days_in_future}")
 
-    predictions = []
-    for _ in range(days_in_future):
-        pred = model.predict(last_window.reshape(1, -1, 1))
-        predictions.append(pred[0][0])
-        last_window = np.append(last_window[1:], pred)
+        predictions_all = {}
 
-    predictions = scaler.inverse_transform(np.array(predictions).reshape(-1, 1)).flatten().tolist()
-    return jsonify(predictions=predictions)
+        for stock_ticker in stock_tickers:
+            df = preprocess(stock_ticker, start_date, end_date)
+
+            logging.info(f"DataFrame info for {stock_ticker}: {df.info()}")
+            logging.info(f"DataFrame head for {stock_ticker}: {df.head()}")
+
+            if df.isnull().sum().any():
+                raise ValueError(f"Data for {stock_ticker} contains missing values.")
+
+            model = Prophet()
+            model.fit(df)
+
+            future = model.make_future_dataframe(periods=days_in_future)
+            forecast = model.predict(future)
+
+            predictions = forecast[['ds', 'yhat']].tail(days_in_future)
+            predictions_list = predictions.to_dict(orient='records')
+            predictions_all[stock_ticker] = predictions_list
+
+        return jsonify(predictions=predictions_all)
+
+    except Exception as e:
+        logging.error(f"Error during prediction: {e}")
+        return jsonify(error=str(e)), 500
 
 
 if __name__ == '__main__':
