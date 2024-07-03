@@ -55,7 +55,6 @@ def predict():
             predictions_list = predictions.to_dict(orient='records')
             predictions_all[stock_ticker] = predictions_list
 
-
         expected_gains = {}
         investment_per_stock = investment_amount / num_stocks
 
