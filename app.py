@@ -26,11 +26,13 @@ def predict():
     start_date = data['start_date']
     end_date = data['end_date']
     days_in_future = data['days_in_future']
+    investment_amount = data['investment_amount']
+    num_stocks = len(stock_tickers)
 
     try:
         logging.info("Received request data.")
         logging.info(
-            f"Stock tickers: {stock_tickers}, Start date: {start_date}, End date: {end_date}, Days in future: {days_in_future}")
+            f"Stock tickers: {stock_tickers}, Start date: {start_date}, End date: {end_date}, Days in future: {days_in_future}, Investment amount: {investment_amount}")
 
         predictions_all = {}
 
@@ -53,7 +55,31 @@ def predict():
             predictions_list = predictions.to_dict(orient='records')
             predictions_all[stock_ticker] = predictions_list
 
-        return jsonify(predictions_all)
+
+        expected_gains = {}
+        investment_per_stock = investment_amount / num_stocks
+
+        user_profile = data['user_profile']
+
+        for stock_ticker in predictions_all:
+            future_value = predictions_all[stock_ticker][-1]['yhat']
+            current_value = df['y'].iloc[-1]
+
+            risk_profile = user_profile['risk_profile']
+
+            if risk_profile == 'Moderate':
+                expected_gain = investment_per_stock * (future_value / current_value - 1) * 0.8
+            elif risk_profile == 'Conservative':
+                expected_gain = investment_per_stock * (future_value / current_value - 1) * 0.6
+            else:
+                expected_gain = investment_per_stock * (future_value / current_value - 1)
+
+            expected_gains[stock_ticker] = expected_gain
+
+        return jsonify({
+            'predictions': predictions_all,
+            'expected_gains': expected_gains
+        })
 
     except Exception as e:
         logging.error(f"Error during prediction: {e}")
