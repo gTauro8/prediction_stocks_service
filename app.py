@@ -8,6 +8,7 @@ app = Flask(__name__)
 
 logging.basicConfig(level=logging.DEBUG)
 
+
 def preprocess(stock_ticker, start_date, end_date):
     logging.info(f"Downloading stock data for {stock_ticker} from {start_date} to {end_date}.")
     stock_data = yf.download(stock_ticker, start=start_date, end=end_date)
@@ -28,7 +29,8 @@ def predict():
 
     try:
         logging.info("Received request data.")
-        logging.info(f"Stock tickers: {stock_tickers}, Start date: {start_date}, End date: {end_date}, Days in future: {days_in_future}")
+        logging.info(
+            f"Stock tickers: {stock_tickers}, Start date: {start_date}, End date: {end_date}, Days in future: {days_in_future}")
 
         predictions_all = {}
 
@@ -51,7 +53,7 @@ def predict():
             predictions_list = predictions.to_dict(orient='records')
             predictions_all[stock_ticker] = predictions_list
 
-        return jsonify(predictions=predictions_all)
+        return jsonify(predictions_all)
 
     except Exception as e:
         logging.error(f"Error during prediction: {e}")
